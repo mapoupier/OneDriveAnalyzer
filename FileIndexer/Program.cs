@@ -94,20 +94,31 @@ class Program
     static void InsertFilesIntoDatabase(IDbConnection connection, List<(FileInfo File, string Category)> files)
     {
         string insertSql = @"
-            INSERT INTO Files (FileName, FilePath, Size, Extension, Category)
-            VALUES (@FileName, @FilePath, @Size, @Extension, @Category);
-        ";
+        INSERT INTO Files (FileName, FilePath, Size, Extension, Category)
+        VALUES (@FileName, @FilePath, @Size, @Extension, @Category);
+    ";
 
-        foreach (var (file, category) in files)
+        using var transaction = connection.BeginTransaction();
+        using (var command = new SqliteCommand(insertSql, (SqliteConnection)connection, (SqliteTransaction)transaction))
         {
-            connection.Execute(insertSql, new
+            command.Parameters.Add(new SqliteParameter("@FileName", "TEXT"));
+            command.Parameters.Add(new SqliteParameter("@FilePath", "TEXT"));
+            command.Parameters.Add(new SqliteParameter("@Size", "INTEGER"));
+            command.Parameters.Add(new SqliteParameter("@Extension", "TEXT"));
+            command.Parameters.Add(new SqliteParameter("@Category", "TEXT"));
+
+            foreach (var (file, category) in files)
             {
-                FileName = file.Name,
-                FilePath = file.FullName,
-                Size = file.Length,
-                Extension = file.Extension,
-                Category = category
-            });
+                command.Parameters["@FileName"].Value = file.Name;
+                command.Parameters["@FilePath"].Value = file.FullName;
+                command.Parameters["@Size"].Value = file.Length;
+                command.Parameters["@Extension"].Value = file.Extension;
+                command.Parameters["@Category"].Value = category;
+
+                command.ExecuteNonQuery();
+            }
         }
+
+        transaction.Commit();
     }
 }
